@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from datetime import timedelta
+
+from django.utils import timezone
 from rest_framework import serializers
 
 from .models import Trip
@@ -34,6 +37,14 @@ class TripPlanRequestSerializer(serializers.Serializer):
     dropoff_location = LocationInputSerializer()
     current_cycle_hours = serializers.FloatField(min_value=0, max_value=70)
     departure_at = serializers.DateTimeField(required=False)
+
+    def validate_departure_at(self, value):
+        # Five-minute grace for clock skew between the user's browser and the
+        # server — otherwise a user who clicks "Plan" the instant they finish
+        # typing "now" would get rejected.
+        if value < timezone.now() - timedelta(minutes=5):
+            raise serializers.ValidationError("Departure must be in the future.")
+        return value
 
 
 class TripSerializer(serializers.ModelSerializer):

@@ -1,7 +1,15 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import LocationInput from './LocationInput.jsx'
 
 const EMPTY_LOCATION = { query: '', label: '', latitude: undefined, longitude: undefined }
+
+// "now" formatted for an <input type="datetime-local"> min attribute:
+// YYYY-MM-DDTHH:MM in *local* time (no timezone suffix).
+function nowLocalIso() {
+  const now = new Date()
+  const tzOffsetMs = now.getTimezoneOffset() * 60_000
+  return new Date(now.getTime() - tzOffsetMs).toISOString().slice(0, 16)
+}
 
 export default function TripForm({ onSubmit, isLoading, defaultValues }) {
   const [currentLocation, setCurrentLocation] = useState(
@@ -17,6 +25,10 @@ export default function TripForm({ onSubmit, isLoading, defaultValues }) {
   const [departureAt, setDepartureAt] = useState(defaultValues?.departureAt ?? '')
   const [errors, setErrors] = useState({})
 
+  // Computed once at mount so the picker doesn't keep retroactively rejecting
+  // the user's earlier choice as time ticks forward.
+  const minDeparture = useMemo(() => nowLocalIso(), [])
+
   function validate() {
     const e = {}
     if (!currentLocation.query.trim()) e.currentLocation = 'Required.'
@@ -27,6 +39,17 @@ export default function TripForm({ onSubmit, isLoading, defaultValues }) {
     if (Number.isNaN(n) || n < 0 || n > 70) {
       e.cycleHours = 'Enter a number between 0 and 70.'
     }
+
+    if (departureAt) {
+      const picked = new Date(departureAt)
+      if (Number.isNaN(picked.getTime())) {
+        e.departureAt = 'Enter a valid date.'
+      } else if (picked.getTime() < Date.now() - 5 * 60_000) {
+        // 5-minute grace covers form-fill latency and small clock skew.
+        e.departureAt = 'Departure must be in the future.'
+      }
+    }
+
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -126,11 +149,14 @@ export default function TripForm({ onSubmit, isLoading, defaultValues }) {
           className="input"
           type="datetime-local"
           value={departureAt}
+          min={minDeparture}
           onChange={(e) => setDepartureAt(e.target.value)}
+          aria-invalid={!!errors.departureAt}
         />
         <div className="field__hint">
-          Defaults to now if left blank. Used as the clock-start for the HOS plan.
+          Defaults to now if left blank. Must be in the future.
         </div>
+        {errors.departureAt ? <div className="field__error">{errors.departureAt}</div> : null}
       </div>
 
       <button
