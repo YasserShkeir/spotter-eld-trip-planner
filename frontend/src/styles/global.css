@@ -574,13 +574,48 @@ input, textarea, select {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ---- Print ---- */
 @media print {
-  .app__header, .sidebar, .tabs, .workspace > *:not(.logsheets) {
-    display: none !important;
+  /* Force background fills and brand colors through to the printer. */
+  *, *::before, *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
-  .app__main { grid-template-columns: 1fr; }
-  .workspace { padding: 0; }
-  .logsheet { page-break-after: always; border: none; border-radius: 0; }
-  .logsheet-totals { background: #fff; }
+
+  /* Isolate the log sheets: hide everything, then re-show .logsheets and
+     its descendants. visibility (not display) is the trick here — display:
+     none on an ancestor would hide descendants too. */
+  html, body { background: #fff !important; }
+  body * { visibility: hidden; }
+  .logsheets, .logsheets * { visibility: visible; }
+
+  /* Lift the logs out of the layout so they print from the top of page 1. */
+  .logsheets {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* One log per page, edge-to-edge. */
+  .logsheet {
+    page-break-after: always;
+    break-after: page;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+  }
+  .logsheet:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+  .logsheet__svg { width: 100%; height: auto; }
+  .logsheet-totals {
+    background: #fff !important;
+    border-top: 1px solid #cbd5e1 !important;
+  }
+
+  /* Trim browser margins; the SVG already has its own padding. */
+  @page { margin: 0.4in; }
 }
