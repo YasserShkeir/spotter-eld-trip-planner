@@ -1,0 +1,29 @@
+{
+  "pythonPath": "backend/.venv/bin/python",
+  "venvPath": "backend",
+  "venv": ".venv",
+  "pythonVersion": "3.14",
+  "include": ["backend"],
+  "exclude": [
+    "**/__pycache__",
+    "**/node_modules",
+    "**/.venv",
+    "backend/staticfiles"
+  ],
+  "extraPaths": ["backend"],
+  "typeCheckingMode": "off",
+  "reportMissingImports": "none",
+  "reportGeneralTypeIssues": "none",
+  "reportOptionalSubscript": "none",
+  "reportOptionalMemberAccess": "none",
+  "reportOptionalIterable": "none",
+  "reportOptionalCall": "none",
+  "reportIndexIssue": "none",
+  "reportArgumentType": "none",
+  "reportAttributeAccessIssue": "none",
+  "reportCallIssue": "none",
+  "reportAssignmentType": "none",
+  "reportReturnType": "none",
+  "reportOperatorIssue": "none",
+  "reportPossiblyUnboundVariable": "none"
+}

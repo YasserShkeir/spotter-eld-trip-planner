@@ -1,0 +1,31 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/backend/.venv/bin/python",
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/backend",
+    "${workspaceFolder}/backend/.venv/lib/python3.14/site-packages"
+  ],
+  "python.analysis.diagnosticMode": "workspace",
+  "python.analysis.typeCheckingMode": "off",
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportMissingImports": "none",
+    "reportGeneralTypeIssues": "none",
+    "reportOptionalSubscript": "none",
+    "reportOptionalMemberAccess": "none",
+    "reportOptionalIterable": "none",
+    "reportOptionalCall": "none",
+    "reportIndexIssue": "none",
+    "reportArgumentType": "none",
+    "reportAttributeAccessIssue": "none",
+    "reportCallIssue": "none",
+    "reportAssignmentType": "none",
+    "reportReturnType": "none",
+    "reportOperatorIssue": "none",
+    "reportPossiblyUnboundVariable": "none"
+  },
+  "python.analysis.autoImportCompletions": true,
+  "python.languageServer": "Pylance",
+  "python.terminal.activateEnvironment": true,
+  "[python]": {
+    "editor.tabSize": 4
+  }
+}
