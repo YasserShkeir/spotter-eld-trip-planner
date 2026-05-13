@@ -185,21 +185,25 @@ function StatusLine({ entries }) {
 }
 
 function RemarksAnnotations({ entries }) {
-  // Annotate each duty-status change with its description at the corresponding x.
-  // Annotate status changes only (skip the implicit pre-trip off-duty padding).
+  // Build one annotation per duty-status change (skip the implicit pre-trip
+  // off-duty padding so we don't draw a tick at midnight on every page).
   const changes = []
   let prevStatus = null
   let prevDesc = null
   for (const entry of entries) {
     if (entry.status !== prevStatus || entry.description !== prevDesc) {
       if (entry.description) {
-        changes.push({ x: hoursToX(entry.start_hours), label: entry.description })
+        changes.push({
+          x: hoursToX(entry.start_hours),
+          label: entry.description,
+          time: formatHourOfDay(entry.start_hours),
+        })
       }
       prevStatus = entry.status
       prevDesc = entry.description
     }
   }
-  // De-duplicate adjacent identical labels at near-identical x.
+  // Collapse adjacent identical labels that land at nearly the same x.
   const dedup = []
   for (const c of changes) {
     const last = dedup[dedup.length - 1]
@@ -208,33 +212,59 @@ function RemarksAnnotations({ entries }) {
     }
   }
 
+  // FMCSA paper-log style: solid vertical tick drops from the bottom of the
+  // 24-hour grid, then kinks 45° down-and-to-the-right. The remark sits along
+  // that oblique — description above the line, time below.
+  const VERTICAL_DROP = 22
+  const OBLIQUE_LEN = 70
+  const OBLIQUE_DELTA = OBLIQUE_LEN * Math.SQRT1_2 // ≈ 49.5
+
   return (
     <g>
-      {dedup.map((c, i) => (
-        <g key={`rem-${i}`}>
-          <line
-            x1={c.x}
-            y1={GRID_Y + GRID_H}
-            x2={c.x}
-            y2={REMARKS_Y - 10}
-            stroke="#64748b"
-            strokeWidth={0.5}
-            strokeDasharray="3 2"
-          />
-          <text
-            x={c.x}
-            y={REMARKS_Y - 12}
-            textAnchor="start"
-            fontSize={9.5}
-            fill="#0f172a"
-            transform={`rotate(-30, ${c.x}, ${REMARKS_Y - 12})`}
-          >
-            {c.label}
-          </text>
-        </g>
-      ))}
+      {dedup.map((c, i) => {
+        const elbowY = GRID_Y + GRID_H + VERTICAL_DROP
+        const tipX = c.x - OBLIQUE_DELTA
+        const tipY = elbowY + OBLIQUE_DELTA
+        const rot = `rotate(-45, ${c.x}, ${elbowY})`
+        return (
+          <g key={`rem-${i}`}>
+            <line
+              x1={c.x} y1={GRID_Y + GRID_H}
+              x2={c.x} y2={elbowY}
+              stroke="#0f172a" strokeWidth={0.9}
+            />
+            <line
+              x1={c.x} y1={elbowY}
+              x2={tipX} y2={tipY}
+              stroke="#0f172a" strokeWidth={0.9}
+            />
+            <text
+              x={c.x - 6} y={elbowY - 3}
+              transform={rot}
+              fontSize={9.5} fontWeight={500}
+              fill="#0f172a" textAnchor="end"
+            >
+              {c.label}
+            </text>
+            <text
+              x={c.x - 6} y={elbowY + 11}
+              transform={rot}
+              fontSize={8.5}
+              fill="#475569" textAnchor="end"
+            >
+              {c.time}
+            </text>
+          </g>
+        )
+      })}
     </g>
   )
+}
+
+function formatHourOfDay(decimalHours) {
+  const h = Math.floor(decimalHours)
+  const m = Math.round((decimalHours - h) * 60)
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
 function HeaderFields({ day, dayIndex, totalDays, carrier, mainOffice, homeTerminal, truckNumbers }) {
