@@ -1,4 +1,5 @@
 """HOS planner for a property-carrying driver on the 70-hr/8-day cycle."""
+
 from __future__ import annotations
 
 import math
@@ -20,6 +21,7 @@ EARTH_RADIUS_MILES = 3958.7613
 
 @dataclass(frozen=True)
 class HOSConfig:
+    # All the base numbers from 395, based on the 11/14/70 limits, 30 min break, 10-hr rest, and 34-hr restart
 
     drive_limit_min: int = 11 * 60
     window_limit_min: int = 14 * 60
@@ -45,12 +47,17 @@ def _haversine_miles(lat1: float, lon1: float, lat2: float, lon2: float) -> floa
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
     dphi = math.radians(lat2 - lat1)
     dlambda = math.radians(lon2 - lon1)
-    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    a = (
+        math.sin(dphi / 2) ** 2
+        + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    )
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return EARTH_RADIUS_MILES * c
 
 
-def _interpolate_along(polyline: list[list[float]], target_miles: float) -> tuple[float, float]:
+def _interpolate_along(
+    polyline: list[list[float]], target_miles: float
+) -> tuple[float, float]:
     """Return (lat, lon) at ``target_miles`` along the polyline."""
     if not polyline:
         return 0.0, 0.0
@@ -247,6 +254,7 @@ class _Run:
         return self._compile_output()
 
     def _drive_leg(self, leg: _Leg) -> None:
+        """Route plus clock advancement for a single leg, broken into multiple segments if we need to stop for breaks/rest/fuel along the way."""
         if leg.distance_miles <= 0 or leg.duration_seconds <= 0:
             return
 
@@ -265,7 +273,11 @@ class _Run:
                 continue
 
             miles_to_fuel = max(self.cfg.fuel_distance_miles - self.miles_since_fuel, 0)
-            miles_we_can_do = min(miles_remaining, miles_to_fuel) if miles_to_fuel > 0 else miles_remaining
+            miles_we_can_do = (
+                min(miles_remaining, miles_to_fuel)
+                if miles_to_fuel > 0
+                else miles_remaining
+            )
             if miles_we_can_do <= 0:
                 # Defensive: shouldn't really happen because we handle fueling below.
                 miles_we_can_do = miles_remaining
@@ -304,7 +316,10 @@ class _Run:
             miles_remaining -= miles_driven
 
             # Fuel stop if we just hit the threshold and still have miles left.
-            if self.miles_since_fuel + 1e-6 >= self.cfg.fuel_distance_miles and miles_remaining > 1e-6:
+            if (
+                self.miles_since_fuel + 1e-6 >= self.cfg.fuel_distance_miles
+                and miles_remaining > 1e-6
+            ):
                 self._take_fuel_stop(end_pos[0], end_pos[1])
 
             if hit_cap:
@@ -327,7 +342,9 @@ class _Run:
         ):
             self._take_rest_or_break(force_full_rest=True)
             guard += 1
-            if guard > 8:  # cycle + restart should resolve in <=2 iterations; bail otherwise
+            if (
+                guard > 8
+            ):  # cycle + restart should resolve in <=2 iterations; bail otherwise
                 break
 
         self._add_segment(
@@ -361,7 +378,6 @@ class _Run:
         if dur >= self.cfg.break_duration_min:
             self.drive_since_break_min = 0
 
-
     def _available_drive_minutes(self) -> float:
         return min(
             self.cfg.drive_limit_min - self.drive_window_min,
@@ -380,6 +396,7 @@ class _Run:
         return self.current_lat, self.current_lon
 
     def _take_rest_or_break(self, *, force_full_rest: bool = False) -> None:
+        """Decide whether we need to take a break, a full rest, or a restart based on which limits we're hitting."""
         cfg = self.cfg
         drive_left = cfg.drive_limit_min - self.drive_window_min
         window_left = cfg.window_limit_min - self.duty_window_min
@@ -533,7 +550,6 @@ class _Run:
             self.drive_since_break_min = 0
         self.miles_since_fuel = 0
 
-
     def _add_segment(self, seg: _Segment) -> None:
         # Glue adjacent same-status & same-description segments together.
         if (
@@ -578,7 +594,9 @@ class _Run:
         last_day = last_end.date()
 
         midnight_start = datetime.combine(first_day, time(0, 0, 0), tzinfo=tz)
-        midnight_end = datetime.combine(last_day + timedelta(days=1), time(0, 0, 0), tzinfo=tz)
+        midnight_end = datetime.combine(
+            last_day + timedelta(days=1), time(0, 0, 0), tzinfo=tz
+        )
 
         full_segments: list[_Segment] = []
         if first_start > midnight_start:
@@ -651,7 +669,11 @@ class _Run:
                     "start_hours": (cursor - day_start_dt).total_seconds() / 3600.0,
                     "end_hours": (chunk_end - day_start_dt).total_seconds() / 3600.0,
                     "duration_minutes": chunk_min,
-                    "miles": seg.distance_miles * fraction if seg.status == "driving" else 0.0,
+                    "miles": (
+                        seg.distance_miles * fraction
+                        if seg.status == "driving"
+                        else 0.0
+                    ),
                 }
                 day_bucket = days_by_date[day_of]
                 day_bucket["entries"].append(entry)
@@ -687,13 +709,21 @@ class _Run:
             first_seg = full_segments[0]
             last_seg = full_segments[-1]
             # Use the location of the first/last driving or pickup/dropoff for this day.
-            day_segs = [s for s in full_segments if s.start.date() <= d_iso <= s.end.date()]
+            day_segs = [
+                s for s in full_segments if s.start.date() <= d_iso <= s.end.date()
+            ]
             for seg in day_segs:
-                if seg.start.date() == d_iso and (seg.status == "driving" or seg.description in ("Pickup", "Drop-off")):
-                    bucket["starting_location"] = nearest_label(seg.start_lat, seg.start_lon)
+                if seg.start.date() == d_iso and (
+                    seg.status == "driving" or seg.description in ("Pickup", "Drop-off")
+                ):
+                    bucket["starting_location"] = nearest_label(
+                        seg.start_lat, seg.start_lon
+                    )
                     break
             for seg in reversed(day_segs):
-                if seg.end.date() == d_iso and (seg.status == "driving" or seg.description in ("Pickup", "Drop-off")):
+                if seg.end.date() == d_iso and (
+                    seg.status == "driving" or seg.description in ("Pickup", "Drop-off")
+                ):
                     bucket["ending_location"] = nearest_label(seg.end_lat, seg.end_lon)
                     break
 
@@ -704,12 +734,20 @@ class _Run:
 
         days = list(days_by_date.values())
 
-        total_drive = sum(s.duration_minutes for s in self.segments if s.status == "driving")
-        total_on_duty_nd = sum(
-            s.duration_minutes for s in self.segments if s.status == "on_duty_not_driving"
+        total_drive = sum(
+            s.duration_minutes for s in self.segments if s.status == "driving"
         )
-        total_off = sum(s.duration_minutes for s in self.segments if s.status == "off_duty")
-        total_sleep = sum(s.duration_minutes for s in self.segments if s.status == "sleeper_berth")
+        total_on_duty_nd = sum(
+            s.duration_minutes
+            for s in self.segments
+            if s.status == "on_duty_not_driving"
+        )
+        total_off = sum(
+            s.duration_minutes for s in self.segments if s.status == "off_duty"
+        )
+        total_sleep = sum(
+            s.duration_minutes for s in self.segments if s.status == "sleeper_berth"
+        )
         total_distance = sum(s.distance_miles for s in self.segments)
         total_trip = (last_end - first_start).total_seconds() / 60.0
 
@@ -738,8 +776,12 @@ class _Run:
                     "departure": st.departure.isoformat(),
                     "lat": st.lat,
                     "lon": st.lon,
-                    "distance_from_origin_miles": round(st.distance_from_origin_miles, 2),
-                    "duration_minutes": round((st.departure - st.arrival).total_seconds() / 60.0, 2),
+                    "distance_from_origin_miles": round(
+                        st.distance_from_origin_miles, 2
+                    ),
+                    "duration_minutes": round(
+                        (st.departure - st.arrival).total_seconds() / 60.0, 2
+                    ),
                 }
                 for st in self.stops
             ],
